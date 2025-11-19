@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 import re
 import google.generativeai as genai
@@ -14,18 +14,18 @@ import os
 
 # ==============================================
 #            STREAMLIT DASHBOARD
-#   AWAN Parts Intelligence System with Robust Analytics
+#      Parts Intelligence Analytics System
 # ==============================================
 
 # Page configuration
 st.set_page_config(
-    page_title="AWAN Parts Intelligence System",
+    page_title="HPE Parts Tracking Dashboard",
     page_icon="🔧",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for professional styling
+# Professional CSS styling
 st.markdown("""
 <style>
     .main-header {
@@ -99,6 +99,20 @@ st.markdown("""
     .bot-message {
         background-color: #f3e5f5;
         border-left-color: #9c27b0;
+    }
+    .date-filter-card {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #bae6fd;
+        margin-bottom: 1rem;
+    }
+    .data-table-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-top: 1rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -488,7 +502,7 @@ class RobustGoogleAIClient:
             status_counts = df['Status'].value_counts().to_dict()
             
             context = f"""
-            AWAN Parts Data Analysis:
+            Parts Data Analysis:
             - Total Parts: {total_parts}
             - Regions: {regions}
             - Status: {status_counts}
@@ -552,21 +566,21 @@ class HybridChatbot:
 
 def main():
     # Enhanced Header Section
-    st.markdown('<div class="company-badge">AWAN INDUSTRIAL SOLUTIONS</div>', 
+    st.markdown('<div class="company-badge">PARTS INTELLIGENCE ANALYTICS SYSTEM</div>', 
                 unsafe_allow_html=True)
     
     st.markdown(
-        '<div class="main-header">🔧 AWAN Parts Intelligence System</div>', 
+        '<div class="main-header">🔧 Advanced Parts Intelligence Dashboard</div>', 
         unsafe_allow_html=True
     )
     
     st.markdown(
-        '<div class="sub-header">Advanced Analytics • Always Available • No API Limits</div>', 
+        '<div class="sub-header">Enterprise Analytics • Multi-Regional Tracking • AI-Powered Insights</div>', 
         unsafe_allow_html=True
     )
     
     # Load data
-    with st.spinner('🔄 Loading AWAN Parts Data...'):
+    with st.spinner('🔄 Loading Parts Intelligence Data...'):
         df = load_data()
     
     if df is None:
@@ -583,6 +597,35 @@ def main():
     # Sidebar
     with st.sidebar:
         st.markdown("### 🎛️ Dashboard Controls")
+        st.markdown("---")
+        
+        # Date Range Filter
+        st.markdown("### 📅 Date Range Filter")
+        if df['Incident Report Date from CRM'].notna().any():
+            min_date = df['Incident Report Date from CRM'].min().date()
+            max_date = df['Incident Report Date from CRM'].max().date()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                start_date = st.date_input(
+                    "Start Date",
+                    value=min_date,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="start_date"
+                )
+            with col2:
+                end_date = st.date_input(
+                    "End Date",
+                    value=max_date,
+                    min_value=min_date,
+                    max_value=max_date,
+                    key="end_date"
+                )
+        else:
+            st.info("No date data available")
+            start_date = end_date = None
+        
         st.markdown("---")
         
         # Google AI Configuration (Optional)
@@ -666,22 +709,30 @@ def main():
     # Apply filters
     filtered_df = df.copy()
     
+    # Apply date filter
+    if start_date and end_date and df['Incident Report Date from CRM'].notna().any():
+        filtered_df = filtered_df[
+            (filtered_df['Incident Report Date from CRM'].dt.date >= start_date) & 
+            (filtered_df['Incident Report Date from CRM'].dt.date <= end_date)
+        ]
+    
     if selected_region != 'All Regions':
         filtered_df = filtered_df[filtered_df['Region'] == selected_region]
     
     if 'All Statuses' not in selected_status and selected_status:
         filtered_df = filtered_df[filtered_df['Status'].isin(selected_status)]
     
+    
     # Main layout with tabs
     tab1, tab2 = st.tabs(["📊 Dashboard Analytics", "🤖 AI Chat Assistant"])
     
     with tab1:
-        display_dashboard(filtered_df, selected_region, selected_status)
+        display_dashboard(filtered_df, selected_region, selected_status, start_date, end_date)
     
     with tab2:
         display_chat_interface(chatbot, filtered_df, ai_mode, api_key)
 
-def display_dashboard(filtered_df, selected_region, selected_status):
+def display_dashboard(filtered_df, selected_region, selected_status, start_date, end_date):
     """Display the main dashboard analytics"""
     
     # Key Performance Indicators
@@ -730,6 +781,45 @@ def display_dashboard(filtered_df, selected_region, selected_status):
     with col8:
         unused_count = (filtered_df['Status'] == 'Unused').sum()
         st.metric("Unused Parts", f"{unused_count:,}")
+    
+    # NEW: Display Filtered Data Table
+    st.markdown("---")
+    st.markdown("### 📋 Filtered Parts Data")
+    
+    if len(filtered_df) > 0:
+        # Display data table with customer information
+        st.markdown(f"**Showing {len(filtered_df)} records**")
+        
+        # Create a copy for display with better column names
+        display_df = filtered_df.copy()
+        
+        # Select important columns to display (you can modify this based on your actual columns)
+        important_columns = [
+            'Region', 'Status', 'Incident Report Date from CRM',
+            'Customer Name', 'TAG No.', 'Part Description'
+        ]
+        
+        # Filter to only show columns that exist in the dataframe
+        available_columns = [col for col in important_columns if col in display_df.columns]
+        display_df = display_df[available_columns]
+        
+        # Display the dataframe
+        st.dataframe(display_df, use_container_width=True)
+        
+        # Download button
+        csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Filtered Data as CSV",
+            data=csv,
+            file_name=f"filtered_parts_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
+        st.info(f"💡 **Tip**: The table shows {len(filtered_df)} filtered records. Use the download button to export the complete dataset.")
+    
+    else:
+        st.warning("No data available with the current filters.")
     
     # Charts
     st.markdown("---")
@@ -786,11 +876,26 @@ def display_dashboard(filtered_df, selected_region, selected_status):
         st.plotly_chart(fig_avg_days, use_container_width=True)
     else:
         st.info("No processing time data available for analysis")
+    
+    # Time Series Analysis
+    st.markdown("### 📅 Monthly Parts Activity")
+    if len(filtered_df) > 0 and filtered_df['Incident Report Date from CRM'].notna().any():
+        monthly_trend = filtered_df.set_index('Incident Report Date from CRM').resample('M').size()
+        fig_trend = px.line(
+            x=monthly_trend.index,
+            y=monthly_trend.values,
+            labels={'x': 'Month', 'y': 'Number of Parts'},
+            title="Monthly Parts Activity Trend"
+        )
+        fig_trend.update_layout(height=400)
+        st.plotly_chart(fig_trend, use_container_width=True)
+    else:
+        st.info("No date data available for trend analysis")
 
 def display_chat_interface(chatbot, filtered_df, ai_mode, api_key):
     """Display the chat interface"""
     
-    st.markdown("## 🤖 AWAN Parts AI Assistant")
+    st.markdown("## 🤖 Parts Intelligence AI Assistant")
     
     # System Status
     if ai_mode and chatbot.ai_client.configured:
@@ -801,7 +906,7 @@ def display_chat_interface(chatbot, filtered_df, ai_mode, api_key):
     # Initialize chat history
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "assistant", "content": "👋 Hello! I'm your AWAN Parts Assistant. I can help you analyze parts data, provide insights, and suggest improvements. Ask me anything about parts performance, regional distribution, or efficiency metrics!"}
+            {"role": "assistant", "content": "👋 Hello! I'm your Parts Intelligence Assistant. I can help you analyze parts data, provide insights, and suggest improvements. Ask me anything about parts performance, regional distribution, or efficiency metrics!"}
         ]
     
     # Display chat messages
@@ -876,7 +981,7 @@ def display_chat_interface(chatbot, filtered_df, ai_mode, api_key):
     with col2:
         if st.button("🗑️ Clear Chat History", key="clear_chat", use_container_width=True):
             st.session_state.messages = [
-                {"role": "assistant", "content": "👋 Hello! I'm your AWAN Parts Assistant. How can I help you analyze your parts data today?"}
+                {"role": "assistant", "content": "👋 Hello! I'm your Parts Intelligence Assistant. How can I help you analyze your parts data today?"}
             ]
             st.rerun()
     
