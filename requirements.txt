@@ -23,3 +23,5 @@ markdown-it-py==4.0.0
 rich==14.2.0
 Pygments==2.19.2
 mdurl==0.1.2
+scikit-learn>=1.2.0
+nltk>=3.8.0
